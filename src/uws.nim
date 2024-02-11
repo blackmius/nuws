@@ -184,10 +184,22 @@ proc initSSLApp(options: Options): App =
   result.ssl = 1
   result.handle = uws_create_app(1, us_socket_context_options_t())
 
-proc get(app: App, pattern: string, cb: proc(res: Res, req: Req)) =
-  proc rawCb(res: uws_res_t, req: uws_req_t) =
-    cb(Res(ssl: app.ssl, handle: res), Req(handle: req))
-  uws_app_get(app.ssl, app.handle, pattern, cast[uws_method_handler](rawCb.rawProc), rawCb.rawEnv)
+template addMethod(name: untyped) =
+  proc name(app: App, pattern: string, cb: proc(res: Res, req: Req)) =
+    proc rawCb(res: uws_res_t, req: uws_req_t) =
+      cb(Res(ssl: app.ssl, handle: res), Req(handle: req))
+    `uws_app name`(app.ssl, app.handle, pattern, cast[uws_method_handler](rawCb.rawProc), rawCb.rawEnv)
+
+addMethod(get)
+addMethod(post)
+addMethod(options)
+addMethod(delete)
+addMethod(patch)
+addMethod(put)
+addMethod(head)
+addMethod(connect)
+addMethod(trace)
+addMethod(any)
 
 proc listen(app: App, port: int, cb: proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t)) =
   uws_app_listen(app.ssl, app.handle, port, cast[uws_listen_handler](cb.rawProc), cb.rawEnv)
