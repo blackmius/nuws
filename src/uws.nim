@@ -185,29 +185,12 @@ proc initSSLApp(options: Options): App =
   result.handle = uws_create_app(1, us_socket_context_options_t())
 
 proc get(app: App, pattern: string, cb: proc(res: Res, req: Req)) =
-  type C = object
-    cb: proc(res: uws_res_t, req: uws_req_t)
-  var c = new C
-  GC_ref(c)
-  # leak
-  c.cb = proc(res: uws_res_t, req: uws_req_t) =
+  proc rawCb(res: uws_res_t, req: uws_req_t) =
     cb(Res(ssl: app.ssl, handle: res), Req(handle: req))
-  proc rawCallback(res: uws_res_t, req: uws_req_t, env: pointer) {.nimcall.} =
-    cast[ref C](env).cb(res, req)
-  echo repr(cast[pointer](c))
-  uws_app_get(app.ssl, app.handle, pattern, rawCallback, cast[pointer](c))
+  uws_app_get(app.ssl, app.handle, pattern, cast[uws_method_handler](rawCb.rawProc), rawCb.rawEnv)
 
 proc listen(app: App, port: int, cb: proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t)) =
-  type C = object
-    cb: proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t)
-  var c = new C
-  GC_ref(c)
-  c.cb = proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t) =
-    cb(listen_socket, config)
-  proc rawCallback(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t, env: pointer) {.nimcall.} =
-    cast[ref C](env).cb(listen_socket, config)
-  echo repr(cast[pointer](c))
-  uws_app_listen(app.ssl, app.handle, port, rawCallback, cast[pointer](c))
+  uws_app_listen(app.ssl, app.handle, port, cast[uws_listen_handler](cb.rawProc), cb.rawEnv)
 
 proc run(app: App) =
   uws_app_run(app.ssl, app.handle)
