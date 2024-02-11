@@ -185,10 +185,11 @@ proc initSSLApp(options: Options): App =
   result.handle = uws_create_app(1, us_socket_context_options_t())
 
 template addMethod(name: untyped) =
-  proc name(app: App, pattern: string, cb: proc(res: Res, req: Req)) =
+  proc name(app: App, pattern: string, cb: proc(res: Res, req: Req)): App {.discardable.} =
     proc rawCb(res: uws_res_t, req: uws_req_t) =
       cb(Res(ssl: app.ssl, handle: res), Req(handle: req))
     `uws_app name`(app.ssl, app.handle, pattern, cast[uws_method_handler](rawCb.rawProc), rawCb.rawEnv)
+    return app
 
 addMethod(get)
 addMethod(post)
@@ -201,8 +202,9 @@ addMethod(connect)
 addMethod(trace)
 addMethod(any)
 
-proc listen(app: App, port: int, cb: proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t)) =
+proc listen(app: App, port: int, cb: proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t)): App {.discardable.} =
   uws_app_listen(app.ssl, app.handle, port, cast[uws_listen_handler](cb.rawProc), cb.rawEnv)
+  return app
 
 proc run(app: App) =
   uws_app_run(app.ssl, app.handle)
@@ -214,8 +216,6 @@ let app = initApp(Options())
 
 app.get("/*", proc(res: Res, req: Req) =
   res.`end`("Hello\n")
-)
-app.listen(3000, proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t) =
+).listen(3000, proc(listen_socket: us_listen_socket_t, config: uws_app_listen_config_t) =
   echo "start listening"
-)
-app.run()
+).run()
